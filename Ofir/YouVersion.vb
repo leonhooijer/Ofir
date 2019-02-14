@@ -15,54 +15,70 @@ Public Class YouVersion
         If Directory.Exists(sourceFolder) Then
             Console.WriteLine("Afbeeldingen importeren vanuit {0}", sourceFolder)
 
-            'Loop through the files
+            'Get HTML files
+            Dim htmlFileNames As List(Of String) = New List(Of String)
             For Each fileName In Directory.EnumerateFiles(sourceFolder)
-                If fileName.Split(".").Last() <> "html" Then Continue For
+                If fileName.Split(".").Last() = "html" Then htmlFileNames.Add(fileName)
+            Next
 
-                'Parse each HTML file
+            'Load HTML documents
+            Dim htmlDocumentCollection As Dictionary(Of String, HtmlDocument) = New Dictionary(Of String, HtmlDocument)
+            For Each htmlFileName In htmlFileNames
                 Dim htmlDoc As HtmlDocument = New HtmlDocument()
-                htmlDoc.Load(fileName)
+                htmlDoc.Load(htmlFileName)
+                htmlDocumentCollection.Add(htmlFileName, htmlDoc)
+            Next
 
-                'Find the img-tags
-                Dim nodes = htmlDoc.DocumentNode.SelectNodes(XpathImg).ToList()
+            'Find all img-tag nodes
+            'TODO: Check for the "votd-image" class
+            Dim imageTagNodeCollection As Dictionary(Of String, List(Of HtmlNode)) = New Dictionary(Of String, List(Of HtmlNode))
+            For Each htmlDocumentEntry In htmlDocumentCollection
+                imageTagNodeCollection.Add(htmlDocumentEntry.Key, htmlDocumentEntry.Value.DocumentNode.SelectNodes(XpathImg).ToList())
+            Next
 
-                For Each node In nodes
-                    'Get each URL
+            'Select all image URLs not on the blacklist
+            Dim importCollection As Dictionary(Of String, String) = New Dictionary(Of String, String)
+
+            For Each imageTagNodeEntry In imageTagNodeCollection
+                For Each node In imageTagNodeEntry.Value
                     For Each imageSource In node.Attributes.AttributesWithName("src")
-                        'Find the correct URL
-                        Dim imageUrl As String = imageSource.Value
+                        Dim imageUrl = imageSource.Value
                         Dim imageFileName As String = imageUrl.Split("/").Last()
 
                         If imageBlackList.Contains(imageFileName) Then Continue For
 
-                        Dim fileNameParts As String() = fileName.Split(" - ")
-                        Dim mailTitle As String = ""
-                        Dim bibleVerse As String = ""
-                        Dim mailDate As String = fileNameParts.GetValue(0)
-                        If fileNameParts.Length = 3 Then
-                            mailTitle = fileNameParts.GetValue(1)
-                            bibleVerse = fileNameParts.GetValue(2)
-                        End If
-
-                        Console.WriteLine(imageUrl)
-                        'Get it at a large resolution
-                        Dim highResolutionImageFileUrl As String = imageUrl.Replace("320x320", "1280x1280")
-                        highResolutionImageFileUrl = highResolutionImageFileUrl.Replace("640x640", "1280x1280")
-
-                        'Download and store the file in de destination folder
-                        Dim Client As New WebClient
-                        If bibleVerse <> "" Then
-                            Client.DownloadFile(highResolutionImageFileUrl, String.Concat(sourceFolder, "\", bibleVerse, ".jpg").Replace(".html", ""))
-                        Else
-                            Client.DownloadFile(highResolutionImageFileUrl, String.Concat(mailDate, ".jpg").Replace(".html", ""))
-                        End If
-                        Client.Dispose()
+                        imageUrl = imageUrl.Replace("320x320", "1280x1280")
+                        imageUrl = imageUrl.Replace("640x640", "1280x1280")
+                        importCollection.Add(imageTagNodeEntry.Key, imageUrl)
                     Next
                 Next
-
-                'TODO: Remove the HTML file
-
             Next
+
+            'Download the file at eacht URL
+            For Each importable In importCollection
+                Dim fileNameParts As String() = importable.Key.Split(" - ")
+                Dim mailTitle As String = ""
+                Dim bibleVerse As String = ""
+                Dim mailDate As String = fileNameParts.GetValue(0)
+                If fileNameParts.Length = 3 Then
+                    mailTitle = fileNameParts.GetValue(1)
+                    bibleVerse = fileNameParts.GetValue(2)
+                End If
+
+                'Download and store the file in de destination folder
+                Dim Client As New WebClient
+                If bibleVerse <> "" Then
+                    Console.WriteLine("Downloading {0} to {1}", importable.Value, String.Concat(sourceFolder, "\", bibleVerse, ".jpg").Replace(".html", ""))
+                    Client.DownloadFile(importable.Value, String.Concat(sourceFolder, "\", bibleVerse, ".jpg").Replace(".html", ""))
+                Else
+                    Console.WriteLine("Downloading {0} to {1}", importable.Value, String.Concat(mailDate, ".jpg").Replace(".html", ""))
+                    Client.DownloadFile(importable.Value, String.Concat(mailDate, ".jpg").Replace(".html", ""))
+                End If
+                Client.Dispose()
+            Next
+
+            'TODO: Remove the HTML file
+
         Else
             Console.WriteLine("Locatie {0} bestaat niet", sourceFolder)
         End If
