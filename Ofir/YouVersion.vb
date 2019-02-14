@@ -17,50 +17,51 @@ Public Class YouVersion
 
             'Loop through the files
             For Each fileName In Directory.EnumerateFiles(sourceFolder)
-                If fileName.Split(".").Last() = "html" Then
-                    Console.WriteLine(fileName)
-                    'Parse each HTML file
-                    Dim htmlDoc As HtmlDocument = New HtmlDocument()
-                    htmlDoc.Load(fileName)
-                    'Find the img-tags
-                    Dim nodes = htmlDoc.DocumentNode.SelectNodes(XpathImg).ToList()
-                    For Each node In nodes
-                        'Get each URL
-                        For Each imageSource In node.Attributes.AttributesWithName("src")
-                            'Find the correct URL
-                            Dim imageUrl As String = imageSource.Value
-                            Dim imageFileName As String = imageUrl.Split("/").Last()
-                            Dim fileNameParts As String() = fileName.Split(" - ")
-                            Dim mailTitle As String = ""
-                            Dim bibleVerse As String = ""
-                            Dim mailDate As String = fileNameParts.GetValue(0)
-                            If fileNameParts.Length = 3 Then
-                                mailTitle = fileNameParts.GetValue(1)
-                                bibleVerse = fileNameParts.GetValue(2)
-                            End If
+                If fileName.Split(".").Last() <> "html" Then Continue For
 
-                            If Not imageBlackList.Contains(imageFileName) Then
-                                Console.WriteLine(imageUrl)
-                                'Get it at a large resolution
-                                Dim highResolutionImageFileUrl As String = imageUrl.Replace("320x320", "1280x1280")
-                                highResolutionImageFileUrl = highResolutionImageFileUrl.Replace("640x640", "1280x1280")
+                'Parse each HTML file
+                Dim htmlDoc As HtmlDocument = New HtmlDocument()
+                htmlDoc.Load(fileName)
 
-                                'Download and store the file in de destination folder
-                                Dim Client As New WebClient
-                                If bibleVerse <> "" Then
-                                    Client.DownloadFile(highResolutionImageFileUrl, String.Concat(sourceFolder, "\", bibleVerse, ".jpg").Replace(".html", ""))
-                                Else
-                                    Client.DownloadFile(highResolutionImageFileUrl, String.Concat(mailDate, ".jpg").Replace(".html", ""))
-                                End If
-                                Client.Dispose()
-                            End If
+                'Find the img-tags
+                Dim nodes = htmlDoc.DocumentNode.SelectNodes(XpathImg).ToList()
 
-                        Next
+                For Each node In nodes
+                    'Get each URL
+                    For Each imageSource In node.Attributes.AttributesWithName("src")
+                        'Find the correct URL
+                        Dim imageUrl As String = imageSource.Value
+                        Dim imageFileName As String = imageUrl.Split("/").Last()
+
+                        If imageBlackList.Contains(imageFileName) Then Continue For
+
+                        Dim fileNameParts As String() = fileName.Split(" - ")
+                        Dim mailTitle As String = ""
+                        Dim bibleVerse As String = ""
+                        Dim mailDate As String = fileNameParts.GetValue(0)
+                        If fileNameParts.Length = 3 Then
+                            mailTitle = fileNameParts.GetValue(1)
+                            bibleVerse = fileNameParts.GetValue(2)
+                        End If
+
+                        Console.WriteLine(imageUrl)
+                        'Get it at a large resolution
+                        Dim highResolutionImageFileUrl As String = imageUrl.Replace("320x320", "1280x1280")
+                        highResolutionImageFileUrl = highResolutionImageFileUrl.Replace("640x640", "1280x1280")
+
+                        'Download and store the file in de destination folder
+                        Dim Client As New WebClient
+                        If bibleVerse <> "" Then
+                            Client.DownloadFile(highResolutionImageFileUrl, String.Concat(sourceFolder, "\", bibleVerse, ".jpg").Replace(".html", ""))
+                        Else
+                            Client.DownloadFile(highResolutionImageFileUrl, String.Concat(mailDate, ".jpg").Replace(".html", ""))
+                        End If
+                        Client.Dispose()
                     Next
+                Next
 
-                    'TODO: Remove the HTML file
+                'TODO: Remove the HTML file
 
-                End If
             Next
         Else
             Console.WriteLine("Locatie {0} bestaat niet", sourceFolder)
